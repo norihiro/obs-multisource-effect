@@ -251,8 +251,10 @@ static void msrc_render(void *data, gs_effect_t *effect)
 		if (!s->texrender[i])
 			s->texrender[i] = gs_texrender_create(GS_BGRA, GS_ZS_NONE);
 		gs_texrender_reset(s->texrender[i]);
-		if (!gs_texrender_begin(s->texrender[i], w, h))
+		if (!gs_texrender_begin(s->texrender[i], w, h)) {
+			obs_source_release(src);
 			continue;
+		}
 
 		struct vec4 background;
 		vec4_zero(&background);
