@@ -48,16 +48,19 @@ configure_file(
 
 set(PLUGIN_SOURCES
 	src/multisource-effect.c
+	src/source_list.cc
 )
 
 set(PLUGIN_HEADERS
 	src/plugin-macros.generated.h
+	src/source_list.h
 )
 
 # --- Platform-independent build settings ---
 add_library(${CMAKE_PROJECT_NAME} MODULE ${PLUGIN_SOURCES} ${PLUGIN_HEADERS})
 
 include_directories(
+	"${LIBOBS_INCLUDE_DIR}/../UI/obs-frontend-api"
 	${LIBOBS_INCLUDE_DIR}
 )
 
@@ -69,6 +72,11 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
 
 # --- Windows-specific build settings and tasks ---
 if(WIN32)
+	if(NOT DEFINED OBS_FRONTEND_LIB)
+		set(OBS_FRONTEND_LIB "OBS_FRONTEND_LIB-NOTFOUND" CACHE FILEPATH "OBS frontend library")
+		message(FATAL_ERROR "Could not find OBS Frontend API\'s library !")
+	endif()
+
     # Enable Multicore Builds and disable FH4 (to not depend on VCRUNTIME140_1.DLL when building with VS2019)
     if (MSVC)
         add_definitions(/MP /d2FH4-)
@@ -82,6 +90,13 @@ if(WIN32)
 		set(OBS_BUILDDIR_ARCH "build32")
 	endif()
 
+	include_directories(
+		"${LIBOBS_INCLUDE_DIR}/../${OBS_BUILDDIR_ARCH}/UI"
+	)
+
+	target_link_libraries(${CMAKE_PROJECT_NAME}
+		"${OBS_FRONTEND_LIB}"
+	)
 
 	# --- Release package helper ---
 	# The "release" folder has a structure similar OBS' one on Windows
@@ -148,6 +163,7 @@ if(UNIX AND NOT APPLE)
 	include(GNUInstallDirs)
 
 	set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES PREFIX "")
+	target_link_libraries(${CMAKE_PROJECT_NAME} obs-frontend-api)
 
 	install(TARGETS ${CMAKE_PROJECT_NAME}
 		LIBRARY DESTINATION "${CMAKE_INSTALL_FULL_LIBDIR}/obs-plugins")
@@ -162,5 +178,6 @@ if(APPLE)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++ -fvisibility=default")
 
 	set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES PREFIX "")
+	target_link_libraries(${CMAKE_PROJECT_NAME} "${OBS_FRONTEND_LIB}")
 endif()
 # -- End of section --

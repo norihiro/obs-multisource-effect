@@ -21,6 +21,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #include <util/dstr.h>
 
 #include "plugin-macros.generated.h"
+#include "source_list.h"
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")
@@ -131,10 +132,11 @@ static void msrc_get_defaults(obs_data_t *settings) {}
 
 #define FILE_FILTER "Effect Files (*.effect);;"
 
-static void properties_add_source(obs_properties_t *pp, const char *name, const char *desc)
+static void properties_add_source(struct msrc *s, obs_properties_t *pp, const char *name, const char *desc)
 {
-	obs_properties_add_text(pp, name, desc, OBS_TEXT_DEFAULT);
-	// TODO: use obs_properties_add_list
+	obs_property_t *p;
+	p = obs_properties_add_list(pp, name, desc, OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+	property_list_add_sources(p, s ? s->self : NULL);
 }
 
 static obs_properties_t *msrc_get_properties(void *data)
@@ -160,7 +162,7 @@ static obs_properties_t *msrc_get_properties(void *data)
 		struct dstr desc = {0};
 		dstr_printf(&desc, obs_module_text("Source %d"), i);
 
-		properties_add_source(pp, name, desc.array);
+		properties_add_source(s, pp, name, desc.array);
 
 		dstr_free(&desc);
 	}
