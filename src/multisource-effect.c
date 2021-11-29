@@ -168,22 +168,12 @@ static obs_properties_t *msrc_get_properties(void *data)
 	return pp;
 }
 
-static obs_source_t *msrc_get_source(struct msrc *s, int ix)
+static inline obs_source_t *msrc_get_source(struct msrc *s, int ix)
 {
 	if (s->src_ref[ix])
 		return obs_weak_source_get_source(s->src_ref[ix]);
 
-	if (!s->src_name[ix])
-		return NULL;
-
-	// In enum_active_sources, obs_get_source_by_name stuck.
-	if (s->in_enum)
-		return NULL;
-
-	obs_source_t *src = obs_get_source_by_name(s->src_name[ix]);
-	s->src_ref[ix] = obs_source_get_weak_source(src);
-
-	return src;
+	return NULL;
 }
 
 static uint32_t msrc_get_width(void *data)
@@ -327,7 +317,9 @@ static void msrc_tick(void *data, float second)
 
 		if (fail) {
 			obs_weak_source_release(s->src_ref[i]);
-			s->src_ref[i] = NULL;
+			src = obs_get_source_by_name(s->src_name[i]);
+			s->src_ref[i] = obs_source_get_weak_source(src);
+			obs_source_release(src);
 		}
 	}
 }
