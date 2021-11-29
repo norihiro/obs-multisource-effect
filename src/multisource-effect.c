@@ -30,6 +30,7 @@ OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")
 struct msrc
 {
 	obs_source_t *self;
+	bool in_enum;
 
 	// properties and objects
 	char *effect_name;
@@ -175,6 +176,10 @@ static obs_source_t *msrc_get_source(struct msrc *s, int ix)
 	if (!s->src_name[ix])
 		return NULL;
 
+	// In enum_active_sources, obs_get_source_by_name stuck.
+	if (s->in_enum)
+		return NULL;
+
 	obs_source_t *src = obs_get_source_by_name(s->src_name[ix]);
 	s->src_ref[ix] = obs_source_get_weak_source(src);
 
@@ -218,7 +223,11 @@ static uint32_t msrc_get_height(void *data)
 static void msrc_enum_sources(void *data, obs_source_enum_proc_t enum_callback, void *param)
 {
 	struct msrc *s = data;
-	// TODO: implement me
+
+	if (s->in_enum)
+		return;
+
+	s->in_enum = true;
 
 	for (int i = 0; i < N_SRC; i++) {
 		obs_source_t *src = msrc_get_source(s, i);
@@ -227,6 +236,8 @@ static void msrc_enum_sources(void *data, obs_source_enum_proc_t enum_callback, 
 		enum_callback(s->self, src, param);
 		obs_source_release(src);
 	}
+
+	s->in_enum = false;
 }
 
 static void msrc_render(void *data, gs_effect_t *effect)
