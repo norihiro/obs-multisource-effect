@@ -309,6 +309,9 @@ static void msrc_tick(void *data, float second)
 		s->rendered[i] = false;
 
 	for (int i = 0; i < N_SRC; i++) {
+		if (!s->src_name[i] || !*s->src_name[i])
+			continue;
+
 		bool fail = false;
 		obs_source_t *src = msrc_get_source(s, i);
 
