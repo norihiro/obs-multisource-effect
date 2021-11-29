@@ -238,16 +238,26 @@ static void msrc_render(void *data, gs_effect_t *effect)
 	if (!s->effect)
 		return;
 
-	for (int i = 0; i < N_SRC; i++) {
-		if (s->rendered[i])
-			continue;
+	uint32_t ww = 0; // = msrc_get_width(s);
+	uint32_t hh = 0; // = msrc_get_height(s);
 
+	for (int i = 0; i < N_SRC; i++) {
 		obs_source_t *src = msrc_get_source(s, i);
 		if (!src)
 			continue;
 
 		uint32_t w = obs_source_get_width(src);
 		uint32_t h = obs_source_get_height(src);
+
+		if (ww < w)
+			ww = w;
+		if (hh < h)
+			hh = h;
+
+		if (s->rendered[i]) {
+			obs_source_release(src);
+			continue;
+		}
 
 		if (!s->texrender[i])
 			s->texrender[i] = gs_texrender_create(GS_BGRA, GS_ZS_NONE);
@@ -282,10 +292,6 @@ static void msrc_render(void *data, gs_effect_t *effect)
 		snprintf(name, sizeof(name), "src%d", i);
 		gs_effect_set_texture(gs_effect_get_param_by_name(s->effect, name), tex);
 	}
-
-	// FIXME: It is not efficient to loop all sources inside each function.
-	uint32_t ww = msrc_get_width(s);
-	uint32_t hh = msrc_get_height(s);
 
 	while (gs_effect_loop(s->effect, "Draw")) {
 		gs_draw_sprite(NULL, 0, ww, hh);
