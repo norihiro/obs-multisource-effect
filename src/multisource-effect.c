@@ -338,7 +338,7 @@ static void msrc_tick(void *data, float second)
 static struct obs_source_info msrc_info = {
 	.id = "net.nagater.obs-multisource-effect",
 	.type = OBS_SOURCE_TYPE_INPUT,
-	.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_CUSTOM_DRAW,
+	.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_CUSTOM_DRAW | OBS_SOURCE_DO_NOT_DUPLICATE,
 	.get_name = msrc_get_name,
 	.create = msrc_create,
 	.destroy = msrc_destroy,
