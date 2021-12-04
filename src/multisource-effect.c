@@ -32,6 +32,7 @@ struct msrc
 {
 	obs_source_t *self;
 	bool in_enum;
+	bool in_callback;
 
 	// properties and objects
 	char *effect_name;
@@ -181,6 +182,9 @@ static inline obs_source_t *msrc_get_source(struct msrc *s, int ix)
 static uint32_t msrc_get_width(void *data)
 {
 	struct msrc *s = data;
+	if (s->in_callback)
+		return 0;
+	s->in_callback = true;
 
 	uint32_t ret = 0;
 	for (int i = 0; i < N_SRC; i++) {
@@ -192,12 +196,16 @@ static uint32_t msrc_get_width(void *data)
 			ret = n;
 		obs_source_release(src);
 	}
+	s->in_callback = false;
 	return ret;
 }
 
 static uint32_t msrc_get_height(void *data)
 {
 	struct msrc *s = data;
+	if (s->in_callback)
+		return 0;
+	s->in_callback = true;
 
 	uint32_t ret = 0;
 	for (int i = 0; i < N_SRC; i++) {
@@ -209,6 +217,7 @@ static uint32_t msrc_get_height(void *data)
 			ret = n;
 		obs_source_release(src);
 	}
+	s->in_callback = false;
 	return ret;
 }
 
@@ -260,6 +269,7 @@ static void msrc_render(void *data, gs_effect_t *effect)
 			obs_source_release(src);
 			continue;
 		}
+		s->rendered[i] = true;
 
 		if (!s->texrender[i])
 			s->texrender[i] = gs_texrender_create(GS_BGRA, GS_ZS_NONE);
@@ -282,8 +292,6 @@ static void msrc_render(void *data, gs_effect_t *effect)
 		gs_texrender_end(s->texrender[i]);
 
 		obs_source_release(src);
-
-		s->rendered[i] = true;
 	}
 
 	for (int i = 0; i < N_SRC; i++) {
