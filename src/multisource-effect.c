@@ -19,6 +19,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #include <stdio.h>
 #include <obs-module.h>
 #include <util/dstr.h>
+#include <util/platform.h>
 
 #include "plugin-macros.generated.h"
 #include "source_list.h"
@@ -37,6 +38,7 @@ struct msrc
 	// properties and objects
 	char *effect_name;
 	gs_effect_t *effect;
+	bool bypass_cache;
 	char *src_name[N_SRC];
 	obs_weak_source_t *src_ref[N_SRC];
 
@@ -80,7 +82,39 @@ static void msrc_destroy(void *data)
 	bfree(s);
 }
 
-void update_effect(struct msrc *s, const char *effect_name)
+static inline gs_effect_t *effect_create_without_cache(const char *file, char **error_string)
+{
+	char *file_string;
+	gs_effect_t *effect = NULL;
+
+	file_string = os_quick_read_utf8_file(file);
+	if (!file_string) {
+		blog(LOG_ERROR, "Could not load effect file '%s'", file);
+		return NULL;
+	}
+
+	effect = gs_effect_create(file_string, file, error_string);
+	bfree(file_string);
+
+	return effect;
+}
+
+static void update_effect_internal(struct msrc *s, const char *effect_name)
+{
+	obs_enter_graphics();
+	gs_effect_destroy(s->effect);
+	if (s->bypass_cache)
+		s->effect = effect_create_without_cache(effect_name, NULL);
+	else
+		s->effect = gs_effect_create_from_file(effect_name, NULL);
+	if (!s->effect)
+		blog(LOG_ERROR, "Cannot load '%s'", effect_name);
+	else
+		blog(LOG_INFO, "Successfully loaded '%s'", effect_name);
+	obs_leave_graphics();
+}
+
+static void update_effect(struct msrc *s, const char *effect_name)
 {
 	if (!effect_name || !*effect_name)
 		return;
@@ -91,14 +125,7 @@ void update_effect(struct msrc *s, const char *effect_name)
 	bfree(s->effect_name);
 	s->effect_name = bstrdup(effect_name);
 
-	obs_enter_graphics();
-	gs_effect_destroy(s->effect);
-	s->effect = gs_effect_create_from_file(effect_name, NULL);
-	if (!s->effect)
-		blog(LOG_ERROR, "Cannot load '%s'", effect_name);
-	else
-		blog(LOG_INFO, "Successfully loaded '%s'", effect_name);
-	obs_leave_graphics();
+	update_effect_internal(s, effect_name);
 }
 
 static void update_src(struct msrc *s, int ix, const char *src_name)
@@ -120,6 +147,7 @@ static void msrc_update(void *data, obs_data_t *settings)
 {
 	struct msrc *s = data;
 
+	s->bypass_cache = obs_data_get_bool(settings, "bypass_cache");
 	update_effect(s, obs_data_get_string(settings, "effect"));
 
 	for (int i = 0; i < N_SRC; i++) {
@@ -127,6 +155,14 @@ static void msrc_update(void *data, obs_data_t *settings)
 		snprintf(name, sizeof(name), "src%d", i);
 		update_src(s, i, obs_data_get_string(settings, name));
 	}
+}
+
+static bool msrc_reload_effect(obs_properties_t *props, obs_property_t *property, void *data)
+{
+	struct msrc *s = data;
+	if (s && s->effect_name && *s->effect_name)
+		update_effect_internal(s, s->effect_name);
+	return true;
 }
 
 static void msrc_get_defaults(obs_data_t *settings) {}
@@ -140,12 +176,20 @@ static void properties_add_source(struct msrc *s, obs_properties_t *pp, const ch
 	property_list_add_sources(p, s ? s->self : NULL);
 }
 
+static bool bypass_cache_modified(obs_properties_t *props, obs_property_t *property, obs_data_t *settings)
+{
+	bool bypass_cache = obs_data_get_bool(settings, "bypass_cache");
+	obs_property_t *effect_reload = obs_properties_get(props, "effect_reload");
+	obs_property_set_visible(effect_reload, bypass_cache);
+	return true;
+}
+
 static obs_properties_t *msrc_get_properties(void *data)
 {
 	struct msrc *s = data;
 
 	obs_properties_t *pp = obs_properties_create();
-	// obs_property_t *p;
+	obs_property_t *p;
 
 	struct dstr path = {0};
 	if (s && s->effect_name && *s->effect_name)
@@ -156,6 +200,11 @@ static obs_properties_t *msrc_get_properties(void *data)
 	}
 	obs_properties_add_path(pp, "effect", obs_module_text("Effect file"), OBS_PATH_FILE, FILE_FILTER, path.array);
 	dstr_free(&path);
+
+	p = obs_properties_add_bool(pp, "bypass_cache", obs_module_text("Do not use cache"));
+	obs_property_set_modified_callback(p, bypass_cache_modified);
+	p = obs_properties_add_button(pp, "effect_reload", obs_module_text("Reload"), msrc_reload_effect);
+	obs_property_set_visible(p, s && s->bypass_cache);
 
 	for (int i = 0; i < N_SRC; i++) {
 		char name[16];
