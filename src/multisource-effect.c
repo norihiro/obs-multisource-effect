@@ -301,6 +301,9 @@ static void msrc_render(void *data, gs_effect_t *effect)
 	uint32_t ww = 0; // = msrc_get_width(s);
 	uint32_t hh = 0; // = msrc_get_height(s);
 
+	gs_blend_state_push();
+	gs_reset_blend_state();
+
 	for (int i = 0; i < N_SRC; i++) {
 		obs_source_t *src = msrc_get_source(s, i);
 		if (!src)
@@ -334,8 +337,6 @@ static void msrc_render(void *data, gs_effect_t *effect)
 		gs_clear(GS_CLEAR_COLOR, &background, 0.0f, 0);
 		gs_ortho(0.0f, (float)w, 0.0f, (float)h, -100.0f, 100.0f);
 
-		gs_blend_state_push();
-		gs_blend_function(GS_BLEND_ONE, GS_BLEND_ZERO);
 		obs_source_video_render(src);
 
 		gs_texrender_end(s->texrender[i]);
@@ -355,6 +356,8 @@ static void msrc_render(void *data, gs_effect_t *effect)
 	while (gs_effect_loop(s->effect, "Draw")) {
 		gs_draw_sprite(NULL, 0, ww, hh);
 	}
+
+	gs_reset_blend_state();
 }
 
 static void msrc_tick(void *data, float second)
