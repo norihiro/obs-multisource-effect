@@ -357,7 +357,7 @@ static void msrc_render(void *data, gs_effect_t *effect)
 		gs_draw_sprite(NULL, 0, ww, hh);
 	}
 
-	gs_reset_blend_state();
+	gs_blend_state_pop();
 }
 
 static void msrc_tick(void *data, float second)
