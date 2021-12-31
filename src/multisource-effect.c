@@ -27,7 +27,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")
 
-#define N_SRC 2
+#define N_SRC 4
 
 struct msrc
 {
@@ -39,6 +39,7 @@ struct msrc
 	char *effect_name;
 	gs_effect_t *effect;
 	bool bypass_cache;
+	int n_src;
 	char *src_name[N_SRC];
 	obs_weak_source_t *src_ref[N_SRC];
 
@@ -149,8 +150,13 @@ static void msrc_update(void *data, obs_data_t *settings)
 
 	s->bypass_cache = obs_data_get_bool(settings, "bypass_cache");
 	update_effect(s, obs_data_get_string(settings, "effect"));
+	s->n_src = obs_data_get_int(settings, "n_src");
+	if (s->n_src <= 0)
+		s->n_src = 1;
+	else if (s->n_src > N_SRC)
+		s->n_src = N_SRC;
 
-	for (int i = 0; i < N_SRC; i++) {
+	for (int i = 0; i < N_SRC && i < s->n_src; i++) {
 		char name[16];
 		snprintf(name, sizeof(name), "src%d", i);
 		update_src(s, i, obs_data_get_string(settings, name));
@@ -165,7 +171,10 @@ static bool msrc_reload_effect(obs_properties_t *props, obs_property_t *property
 	return true;
 }
 
-static void msrc_get_defaults(obs_data_t *settings) {}
+static void msrc_get_defaults(obs_data_t *settings)
+{
+	obs_data_set_default_int(settings, "n_src", 2);
+}
 
 #define FILE_FILTER "Effect Files (*.effect);;"
 
@@ -182,6 +191,19 @@ static bool bypass_cache_modified(obs_properties_t *props, obs_property_t *prope
 	obs_property_t *effect_reload = obs_properties_get(props, "effect_reload");
 	obs_property_set_visible(effect_reload, bypass_cache);
 	return true;
+}
+
+static bool n_src_modified(obs_properties_t *props, obs_property_t *property, obs_data_t *settings)
+{
+	int n_src = obs_data_get_int(settings, "n_src");
+
+	for (int i = 0; i < N_SRC; i++) {
+		char name[16];
+		snprintf(name, sizeof(name), "src%d", i);
+
+		obs_property_t *p = obs_properties_get(props, name);
+		obs_property_set_enabled(p, i < n_src);
+	}
 }
 
 static obs_properties_t *msrc_get_properties(void *data)
@@ -205,6 +227,9 @@ static obs_properties_t *msrc_get_properties(void *data)
 	obs_property_set_modified_callback(p, bypass_cache_modified);
 	p = obs_properties_add_button(pp, "effect_reload", obs_module_text("Reload"), msrc_reload_effect);
 	obs_property_set_visible(p, s && s->bypass_cache);
+
+	p = obs_properties_add_int(pp, "n_src", obs_module_text("Number of sources"), 1, N_SRC, 1);
+	obs_property_set_modified_callback(p, n_src_modified);
 
 	for (int i = 0; i < N_SRC; i++) {
 		char name[16];
@@ -236,7 +261,7 @@ static uint32_t msrc_get_width(void *data)
 	s->in_callback = true;
 
 	uint32_t ret = 0;
-	for (int i = 0; i < N_SRC; i++) {
+	for (int i = 0; i < N_SRC && i < s->n_src; i++) {
 		obs_source_t *src = msrc_get_source(s, i);
 		if (!src)
 			continue;
@@ -257,7 +282,7 @@ static uint32_t msrc_get_height(void *data)
 	s->in_callback = true;
 
 	uint32_t ret = 0;
-	for (int i = 0; i < N_SRC; i++) {
+	for (int i = 0; i < N_SRC && i < s->n_src; i++) {
 		obs_source_t *src = msrc_get_source(s, i);
 		if (!src)
 			continue;
@@ -279,7 +304,7 @@ static void msrc_enum_sources(void *data, obs_source_enum_proc_t enum_callback, 
 
 	s->in_enum = true;
 
-	for (int i = 0; i < N_SRC; i++) {
+	for (int i = 0; i < N_SRC && i < s->n_src; i++) {
 		obs_source_t *src = msrc_get_source(s, i);
 		if (!src)
 			continue;
@@ -304,7 +329,7 @@ static void msrc_render(void *data, gs_effect_t *effect)
 	gs_blend_state_push();
 	gs_reset_blend_state();
 
-	for (int i = 0; i < N_SRC; i++) {
+	for (int i = 0; i < N_SRC && i < s->n_src; i++) {
 		obs_source_t *src = msrc_get_source(s, i);
 		if (!src)
 			continue;
@@ -344,7 +369,11 @@ static void msrc_render(void *data, gs_effect_t *effect)
 		obs_source_release(src);
 	}
 
-	for (int i = 0; i < N_SRC; i++) {
+	gs_eparam_t *n_src_param = gs_effect_get_param_by_name(s->effect, "n_src");
+	if (n_src_param)
+		gs_effect_set_int(n_src_param, s->n_src);
+
+	for (int i = 0; i < N_SRC && i < s->n_src; i++) {
 		if (!s->rendered[i])
 			continue;
 		gs_texture_t *tex = gs_texrender_get_texture(s->texrender[i]);
@@ -368,7 +397,7 @@ static void msrc_tick(void *data, float second)
 	for (int i = 0; i < N_SRC; i++)
 		s->rendered[i] = false;
 
-	for (int i = 0; i < N_SRC; i++) {
+	for (int i = 0; i < N_SRC && i < s->n_src; i++) {
 		if (!s->src_name[i] || !*s->src_name[i])
 			continue;
 

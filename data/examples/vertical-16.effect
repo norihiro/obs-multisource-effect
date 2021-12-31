@@ -1,7 +1,10 @@
 
 uniform float4x4 ViewProj;
+uniform int n_src;
 uniform texture2d src0;
 uniform texture2d src1;
+uniform texture2d src2;
+uniform texture2d src3;
 
 sampler_state def_sampler {
 	Filter   = Linear;
@@ -24,11 +27,16 @@ VertInOut VSDefault(VertInOut vert_in)
 
 float4 PSDrawBare(VertInOut vert_in) : TARGET
 {
-	int x = int(vert_in.uv.x * 16);
-	if (x % 2 < 1)
+	int x = int(vert_in.uv.x * 16 * n_src);
+	int i = x % n_src;
+	if (i == 0)
 		return src0.Sample(def_sampler, vert_in.uv);
-	else
+	else if (i == 1)
 		return src1.Sample(def_sampler, vert_in.uv);
+	else if (i == 2)
+		return src2.Sample(def_sampler, vert_in.uv);
+	else
+		return src3.Sample(def_sampler, vert_in.uv);
 }
 
 technique Draw
