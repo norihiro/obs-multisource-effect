@@ -1,0 +1,64 @@
+uniform float4x4 ViewProj;
+uniform texture2d src0;
+uniform texture2d src1;
+
+sampler_state def_sampler {
+	Filter   = Linear;
+	AddressU = Clamp;
+	AddressV = Clamp;
+};
+
+struct VertInOut {
+	float4 pos : POSITION;
+	float2 uv  : TEXCOORD0;
+};
+
+VertInOut VSDefault(VertInOut vert_in)
+{
+	VertInOut vert_out;
+	vert_out.pos = mul(float4(vert_in.pos.xyz, 1.0), ViewProj);
+	vert_out.uv  = vert_in.uv;
+	return vert_out;
+}
+
+float3 min3_multiplied(float4 rgb0, float4 rgb1)
+{
+	float3 t0 = rgb0.xyz * rgb1.a;
+	float3 t1 = rgb1.xyz * rgb0.a;
+	return float3(
+		t0.x < t1.x ? t0.x : t1.x,
+		t0.y < t1.y ? t0.y : t1.y,
+		t0.z < t1.z ? t0.z : t1.z );
+}
+
+float3 max3_multiplied(float4 rgb0, float4 rgb1)
+{
+	float3 t0 = rgb0.xyz * rgb1.a;
+	float3 t1 = rgb1.xyz * rgb0.a;
+	return float3(
+		t0.x > t1.x ? t0.x : t1.x,
+		t0.y > t1.y ? t0.y : t1.y,
+		t0.z > t1.z ? t0.z : t1.z );
+}
+
+float4 PSDrawBare(VertInOut vert_in) : TARGET
+{
+	float4 rgba0 = src0.Sample(def_sampler, vert_in.uv);
+	float4 rgba1 = src1.Sample(def_sampler, vert_in.uv);
+	float a0 = rgba0.a;
+	float a1 = rgba1.a;
+
+	float y0 = (0.212600 * rgba0.x + 0.715200 * rgba0.y + 0.072200 * rgba0.z);
+	float3 sl;
+	sl = y0 > 0.5 * a0 ? max3_multiplied(rgba0, rgba1) : min3_multiplied(rgba0, rgba1);
+	return float4(sl + rgba1.xyz * (1-a0), a1);
+}
+
+technique Draw
+{
+	pass
+	{
+		vertex_shader = VSDefault(vert_in);
+		pixel_shader  = PSDrawBare(vert_in);
+	}
+}
