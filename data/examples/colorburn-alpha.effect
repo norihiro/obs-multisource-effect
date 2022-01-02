@@ -1,0 +1,47 @@
+
+uniform float4x4 ViewProj;
+uniform texture2d src0;
+uniform texture2d src1;
+
+sampler_state def_sampler {
+	Filter   = Linear;
+	AddressU = Clamp;
+	AddressV = Clamp;
+};
+
+struct VertInOut {
+	float4 pos : POSITION;
+	float2 uv  : TEXCOORD0;
+};
+
+VertInOut VSDefault(VertInOut vert_in)
+{
+	VertInOut vert_out;
+	vert_out.pos = mul(float4(vert_in.pos.xyz, 1.0), ViewProj);
+	vert_out.uv  = vert_in.uv;
+	return vert_out;
+}
+
+float4 PSDrawBare(VertInOut vert_in) : TARGET
+{
+	float4 rgba0 = src0.Sample(def_sampler, vert_in.uv);
+	float4 rgba1 = src1.Sample(def_sampler, vert_in.uv);
+	float a0 = rgba0.a;
+	float a1 = rgba1.a;
+	/* 1 - (1 - rgba1) / rgba0 */
+	float3 cb1 = (a1 - rgba1.xyz) * a0;
+	float3 cb;
+	cb.x = a1 * rgba0.x > cb1.x ? a1 - cb1.x / rgba0.x : 0;
+	cb.y = a1 * rgba0.y > cb1.y ? a1 - cb1.y / rgba0.y : 0;
+	cb.z = a1 * rgba0.z > cb1.z ? a1 - cb1.z / rgba0.z : 0;
+	return float4(cb * a0 + rgba1.xyz * (1 - a0), a1);
+}
+
+technique Draw
+{
+	pass
+	{
+		vertex_shader = VSDefault(vert_in);
+		pixel_shader  = PSDrawBare(vert_in);
+	}
+}
