@@ -22,10 +22,6 @@ You can choose from bundled examples or can modify it by yourself.
 If unchecked, the effect file will be read one time. If another source try to read the same file, cache will be used.
 If checked, the cache is disabled. This will be useful to reload the effect file when you debug the effect file.
 
-### Reload
-**Deprecated**
-Click this button if you need to reload the effect file. This button is available if `Do not use cache` is checked.
-
 ### Number of sources
 Set number of sources sent to the effect file.
 Some effect files in the example only support 2 for this property.

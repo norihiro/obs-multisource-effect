@@ -20,6 +20,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #include <obs-module.h>
 #include <util/dstr.h>
 #include <util/platform.h>
+#include <sys/stat.h>
 
 #include "plugin-macros.generated.h"
 #include "source_list.h"
@@ -39,6 +40,9 @@ struct msrc
 	char *effect_name;
 	gs_effect_t *effect;
 	bool bypass_cache;
+	uint64_t m_time;
+	bool update_file;
+	uint64_t last_checked;
 	int n_src;
 	char *src_name[N_SRC];
 	obs_weak_source_t *src_ref[N_SRC];
@@ -46,6 +50,22 @@ struct msrc
 	gs_texrender_t *texrender[N_SRC];
 	bool rendered[N_SRC];
 };
+
+static uint64_t get_modified_timestamp(const char *filename)
+{
+	struct stat stats;
+
+	if (os_stat(filename, &stats) != 0)
+		return -1;
+
+#if defined(_WIN32) || defined(__APPLE__)
+	// It might cause an issue when the file is too frequenty updated.
+	// TODO: Use GetFileTime for Windows.
+	return stats.st_mtime;
+#else
+	return stats.st_mtim.tv_sec * 1000000000ULL + stats.st_mtim.tv_nsec;
+#endif
+}
 
 static const char *msrc_get_name(void *unused)
 {
@@ -104,10 +124,13 @@ static void update_effect_internal(struct msrc *s, const char *effect_name)
 {
 	obs_enter_graphics();
 	gs_effect_destroy(s->effect);
-	if (s->bypass_cache)
+	if (s->bypass_cache) {
+		s->m_time = get_modified_timestamp(effect_name);
 		s->effect = effect_create_without_cache(effect_name, NULL);
-	else
+	}
+	else {
 		s->effect = gs_effect_create_from_file(effect_name, NULL);
+	}
 	if (!s->effect)
 		blog(LOG_ERROR, "Cannot load '%s'", effect_name);
 	else
@@ -163,14 +186,6 @@ static void msrc_update(void *data, obs_data_t *settings)
 	}
 }
 
-static bool msrc_reload_effect(obs_properties_t *props, obs_property_t *property, void *data)
-{
-	struct msrc *s = data;
-	if (s && s->effect_name && *s->effect_name)
-		update_effect_internal(s, s->effect_name);
-	return true;
-}
-
 static void msrc_get_defaults(obs_data_t *settings)
 {
 	obs_data_set_default_int(settings, "n_src", 2);
@@ -183,14 +198,6 @@ static void properties_add_source(struct msrc *s, obs_properties_t *pp, const ch
 	obs_property_t *p;
 	p = obs_properties_add_list(pp, name, desc, OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
 	property_list_add_sources(p, s ? s->self : NULL);
-}
-
-static bool bypass_cache_modified(obs_properties_t *props, obs_property_t *property, obs_data_t *settings)
-{
-	bool bypass_cache = obs_data_get_bool(settings, "bypass_cache");
-	obs_property_t *effect_reload = obs_properties_get(props, "effect_reload");
-	obs_property_set_visible(effect_reload, bypass_cache);
-	return true;
 }
 
 static bool n_src_modified(obs_properties_t *props, obs_property_t *property, obs_data_t *settings)
@@ -223,10 +230,7 @@ static obs_properties_t *msrc_get_properties(void *data)
 	obs_properties_add_path(pp, "effect", obs_module_text("Effect file"), OBS_PATH_FILE, FILE_FILTER, path.array);
 	dstr_free(&path);
 
-	p = obs_properties_add_bool(pp, "bypass_cache", obs_module_text("Do not use cache"));
-	obs_property_set_modified_callback(p, bypass_cache_modified);
-	p = obs_properties_add_button(pp, "effect_reload", obs_module_text("Reload"), msrc_reload_effect);
-	obs_property_set_visible(p, s && s->bypass_cache);
+	obs_properties_add_bool(pp, "bypass_cache", obs_module_text("Do not use cache"));
 
 	p = obs_properties_add_int(pp, "n_src", obs_module_text("Number of sources"), 1, N_SRC, 1);
 	obs_property_set_modified_callback(p, n_src_modified);
@@ -389,10 +393,29 @@ static void msrc_render(void *data, gs_effect_t *effect)
 	gs_blend_state_pop();
 }
 
+static void check_reload_mtime(struct msrc *s)
+{
+	if (s->update_file) {
+		update_effect_internal(s, s->effect_name);
+		s->update_file = false;
+	}
+
+	if (os_gettime_ns() - s->last_checked >= 1000000000) {
+		uint64_t t = get_modified_timestamp(s->effect_name);
+		s->last_checked = os_gettime_ns();
+
+		if (t != s->m_time)
+			s->update_file = true;
+	}
+}
+
 static void msrc_tick(void *data, float second)
 {
 	struct msrc *s = data;
 	UNUSED_PARAMETER(second);
+
+	if (s->bypass_cache && obs_source_showing(s->self))
+		check_reload_mtime(s);
 
 	for (int i = 0; i < N_SRC; i++)
 		s->rendered[i] = false;
