@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.12)
 
-project(obs-multisource-effect VERSION 0.1.7)
+project(obs-multisource-effect VERSION 0.2.0)
 
 set(PLUGIN_AUTHOR "Norihiro Kamae")
 
