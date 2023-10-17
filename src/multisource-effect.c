@@ -202,6 +202,7 @@ static void properties_add_source(struct msrc *s, obs_properties_t *pp, const ch
 
 static bool n_src_modified(obs_properties_t *props, obs_property_t *property, obs_data_t *settings)
 {
+	UNUSED_PARAMETER(property);
 	int n_src = obs_data_get_int(settings, "n_src");
 
 	for (int i = 0; i < N_SRC; i++) {
@@ -211,6 +212,8 @@ static bool n_src_modified(obs_properties_t *props, obs_property_t *property, ob
 		obs_property_t *p = obs_properties_get(props, name);
 		obs_property_set_enabled(p, i < n_src);
 	}
+
+	return true;
 }
 
 static obs_properties_t *msrc_get_properties(void *data)
@@ -431,7 +434,7 @@ static void msrc_tick(void *data, float second)
 			fail = true;
 
 		const char *name = obs_source_get_name(src);
-		if (!name || s->src_name[i])
+		if (!name)
 			fail = true;
 		else if (strcmp(name, s->src_name[i]) != 0)
 			fail = true;
