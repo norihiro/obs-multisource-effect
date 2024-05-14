@@ -7,6 +7,7 @@ set(PLUGIN_AUTHOR "Norihiro Kamae")
 set(MACOS_BUNDLEID "net.nagater.obs-multisource-effect")
 set(MACOS_PACKAGE_UUID "6B80E1DD-DD89-4E4C-9AFF-7B3100895C93")
 set(MACOS_INSTALLER_UUID "A6B6A884-A6D9-4965-9079-1D5501A8E091")
+set(PLUGIN_URL "https://obsproject.com/forum/resources/multi-source-effect.1412/")
 
 set(LINUX_MAINTAINER_EMAIL "norihiro@nagater.net")
 
