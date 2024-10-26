@@ -1,4 +1,4 @@
-# OBS Multi Source Effect
+# Multi Source Effect plugin for OBS Studio
 
 ## Introduction
 
